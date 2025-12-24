@@ -1,0 +1,86 @@
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+        - name: Retry
+          args:
+            retries: 3
+            statuses: BAD_GATEWAY,GATEWAY_TIMEOUT,SERVICE_UNAVAILABLE
+            methods: GET,POST
+            backoff:
+              firstBackoff: 1s
+              maxBackoff: 5s
+              factor: 2
+              basedOnPreviousValue: false
+      httpclient:
+        connect-timeout: 10000
+        response-timeout: 60s
+        pool:
+          type: ELASTIC
+          max-connections: 500
+          max-idle-time: 30s
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "http://localhost:3000"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+
+server:
+  port: 8080
+
+# Service URLs
+auth:
+  service:
+    url: http://localhost:8081
+
+user:
+  service:
+    url: http://localhost:8082
+
+booking:
+  service:
+    url: http://localhost:8083
+
+# JWT
+jwt:
+  secret: your-secret-key-change-this-in-production
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+auth:
+  service:
+    url: ${AUTH_SERVICE_URL}
+
+user:
+  service:
+    url: ${USER_SERVICE_URL}
+
+booking:
+  service:
+    url: ${BOOKING_SERVICE_URL}
+
+jwt:
+  secret: ${JWT_SECRET}
+
+
