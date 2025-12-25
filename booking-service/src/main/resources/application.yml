@@ -32,9 +32,27 @@ spring:
           max-active: 8
           max-idle: 8
           min-idle: 0
+  
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
 
 server:
   port: 8083
+
+# User Service URL (via gateway)
+user:
+  service:
+    url: ${USER_SERVICE_URL:http://localhost:8080}
 
 # Actuator
 management:
@@ -70,5 +88,22 @@ spring:
           max-active: 8
           max-idle: 8
           min-idle: 0
+  
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+user:
+  service:
+    url: ${USER_SERVICE_URL:http://gateway-service:8080}
 
 

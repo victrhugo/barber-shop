@@ -63,5 +63,42 @@ public class AuthController {
                     .body(Map.of("error", e.getMessage()));
         }
     }
+
+    @PostMapping("/admin/barbers")
+    public ResponseEntity<?> createBarber(@Valid @RequestBody com.barbershop.auth.dto.CreateBarberRequest request) {
+        try {
+            com.barbershop.auth.entity.User barber = authService.createBarber(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "id", barber.getId().toString(),
+                "email", barber.getEmail(),
+                "fullName", barber.getFullName(),
+                "role", barber.getRole().name(),
+                "message", "Barbeiro criado com sucesso"
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // Temporary endpoint to reset admin password - REMOVE IN PRODUCTION
+    @PostMapping("/admin/reset-password")
+    public ResponseEntity<?> resetAdminPassword(@RequestBody Map<String, String> body) {
+        try {
+            String email = body.get("email");
+            String newPassword = body.get("newPassword");
+            
+            if (email == null || newPassword == null) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Email e newPassword são obrigatórios"));
+            }
+            
+            authService.resetPassword(email, newPassword);
+            return ResponseEntity.ok(Map.of("message", "Senha atualizada com sucesso"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
 }
 

@@ -59,6 +59,11 @@ app:
   frontend:
     url: http://localhost:3000
 
+# Booking Service URL
+booking:
+  service:
+    url: ${BOOKING_SERVICE_URL:http://localhost:8083}
+
 # Actuator
 management:
   endpoints:
@@ -103,6 +108,10 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
+
+booking:
+  service:
+    url: ${BOOKING_SERVICE_URL:http://gateway-service:8080}
 
 # Actuator (docker profile) - disable mail health check
 management:

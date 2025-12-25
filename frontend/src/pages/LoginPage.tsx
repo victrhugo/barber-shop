@@ -22,7 +22,15 @@ export default function LoginPage() {
         emailVerified: data.emailVerified,
       })
       toast.success('Login realizado com sucesso!')
-      navigate('/dashboard')
+      
+      // Redirect based on role
+      if (data.role === 'ADMIN') {
+        navigate('/admin/dashboard')
+      } else if (data.role === 'BARBER') {
+        navigate('/barber/dashboard')
+      } else {
+        navigate('/dashboard')
+      }
     },
     onError: () => {
       toast.error('Email ou senha inválidos')

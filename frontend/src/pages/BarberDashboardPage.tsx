@@ -1,12 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Calendar, Clock, User, Scissors, CheckCircle, TrendingUp, Award } from 'lucide-react'
 import { bookingService } from '../services/bookingService'
 import { format, parseISO, isToday, isTomorrow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useState } from 'react'
+import toast from 'react-hot-toast'
 
 export default function BarberDashboardPage() {
   const [viewMode, setViewMode] = useState<'today' | 'upcoming' | 'all'>('today')
+  const queryClient = useQueryClient()
 
   const { data: allBookings, isLoading } = useQuery({
     queryKey: ['barber-all-bookings'],
@@ -16,6 +18,45 @@ export default function BarberDashboardPage() {
   const { data: upcomingBookings } = useQuery({
     queryKey: ['barber-upcoming-bookings'],
     queryFn: bookingService.getBarberUpcomingBookings,
+  })
+
+  const confirmMutation = useMutation({
+    mutationFn: bookingService.confirmBookingByBarber,
+    onSuccess: () => {
+      toast.success('Agendamento confirmado com sucesso!')
+      queryClient.invalidateQueries({ queryKey: ['barber-all-bookings'] })
+      queryClient.invalidateQueries({ queryKey: ['barber-upcoming-bookings'] })
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || 'Erro ao confirmar agendamento'
+      toast.error(errorMessage)
+    },
+  })
+
+  const completeMutation = useMutation({
+    mutationFn: bookingService.completeBookingByBarber,
+    onSuccess: () => {
+      toast.success('Agendamento marcado como concluído!')
+      queryClient.invalidateQueries({ queryKey: ['barber-all-bookings'] })
+      queryClient.invalidateQueries({ queryKey: ['barber-upcoming-bookings'] })
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || 'Erro ao completar agendamento'
+      toast.error(errorMessage)
+    },
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: bookingService.cancelBookingByBarber,
+    onSuccess: () => {
+      toast.success('Agendamento cancelado com sucesso!')
+      queryClient.invalidateQueries({ queryKey: ['barber-all-bookings'] })
+      queryClient.invalidateQueries({ queryKey: ['barber-upcoming-bookings'] })
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || 'Erro ao cancelar agendamento'
+      toast.error(errorMessage)
+    },
   })
 
   if (isLoading) {
@@ -245,13 +286,50 @@ export default function BarberDashboardPage() {
                   )}
 
                   {/* Actions */}
-                  {booking.status === 'PENDING' && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <button className="w-full btn btn-primary text-sm py-2">
-                        Confirmar Agendamento
+                  <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                    {booking.status === 'PENDING' && (
+                      <button
+                        onClick={() => confirmMutation.mutate(booking.id)}
+                        disabled={confirmMutation.isPending}
+                        className="w-full btn btn-primary text-sm py-2"
+                      >
+                        {confirmMutation.isPending ? 'Confirmando...' : 'Confirmar Agendamento'}
                       </button>
-                    </div>
-                  )}
+                    )}
+                    
+                    {booking.status === 'CONFIRMED' && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => completeMutation.mutate(booking.id)}
+                          disabled={completeMutation.isPending}
+                          className="flex-1 btn bg-green-600 hover:bg-green-700 text-white text-sm py-2"
+                        >
+                          {completeMutation.isPending ? 'Salvando...' : 'Marcar como Concluído'}
+                        </button>
+                        <button
+                          onClick={() => cancelMutation.mutate(booking.id)}
+                          disabled={cancelMutation.isPending}
+                          className="flex-1 btn bg-red-600 hover:bg-red-700 text-white text-sm py-2"
+                        >
+                          {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar'}
+                        </button>
+                      </div>
+                    )}
+                    
+                    {booking.status === 'PENDING' && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Tem certeza que deseja cancelar este agendamento?')) {
+                            cancelMutation.mutate(booking.id)
+                          }
+                        }}
+                        disabled={cancelMutation.isPending}
+                        className="w-full btn bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm py-2"
+                      >
+                        {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar Agendamento'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )
             })}

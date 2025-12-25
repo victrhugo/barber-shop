@@ -12,11 +12,18 @@ export interface Service {
 export interface Barber {
   id: string
   userId: string
-  fullName: string
+  fullName?: string
+  email?: string
   specialties?: string[]
   bio?: string
   rating: number
   active: boolean
+}
+
+export interface UpdateBarberData {
+  bio?: string
+  specialties?: string[]
+  active?: boolean
 }
 
 export interface Booking {
@@ -89,6 +96,15 @@ export const bookingService = {
     return response.data
   },
 
+  updateBarber: async (barberId: string, data: { bio?: string; specialties?: string[]; active?: boolean }): Promise<Barber> => {
+    const response = await api.put(`/barbers/${barberId}`, data)
+    return response.data
+  },
+
+  deleteBarber: async (barberId: string): Promise<void> => {
+    await api.delete(`/barbers/${barberId}`)
+  },
+
   // Barber endpoints
   getBarberBookings: async (): Promise<Booking[]> => {
     const response = await api.get('/bookings/barber/my-bookings')
@@ -97,6 +113,21 @@ export const bookingService = {
 
   getBarberUpcomingBookings: async (): Promise<Booking[]> => {
     const response = await api.get('/bookings/barber/upcoming')
+    return response.data
+  },
+
+  confirmBookingByBarber: async (bookingId: string): Promise<Booking> => {
+    const response = await api.put(`/bookings/barber/${bookingId}/confirm`)
+    return response.data
+  },
+
+  completeBookingByBarber: async (bookingId: string): Promise<Booking> => {
+    const response = await api.put(`/bookings/barber/${bookingId}/complete`)
+    return response.data
+  },
+
+  cancelBookingByBarber: async (bookingId: string): Promise<Booking> => {
+    const response = await api.put(`/bookings/barber/${bookingId}/cancel`)
     return response.data
   },
 

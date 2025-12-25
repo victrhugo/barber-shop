@@ -39,6 +39,18 @@ export const authService = {
   resendVerification: async (email: string): Promise<void> => {
     await api.post('/auth/resend-verification', { email })
   },
+
+  createBarber: async (data: {
+    email: string
+    password: string
+    fullName: string
+    phone?: string
+    bio?: string
+    specialties?: string[]
+  }): Promise<any> => {
+    const response = await api.post('/auth/admin/barbers', data)
+    return response.data
+  },
 }
 
 

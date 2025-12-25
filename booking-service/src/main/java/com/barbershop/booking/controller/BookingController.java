@@ -100,6 +100,54 @@ public class BookingController {
         List<BookingDTO> bookings = bookingService.getUpcomingBookingsByBarber(UUID.fromString(barberId));
         return ResponseEntity.ok(bookings);
     }
+
+    @PutMapping("/barber/{bookingId}/confirm")
+    public ResponseEntity<?> confirmBookingByBarber(
+            @RequestHeader("X-User-Id") String barberId,
+            @PathVariable String bookingId) {
+        try {
+            BookingDTO booking = bookingService.confirmBookingByBarber(
+                    UUID.fromString(barberId),
+                    UUID.fromString(bookingId)
+            );
+            return ResponseEntity.ok(booking);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/barber/{bookingId}/complete")
+    public ResponseEntity<?> completeBookingByBarber(
+            @RequestHeader("X-User-Id") String barberId,
+            @PathVariable String bookingId) {
+        try {
+            BookingDTO booking = bookingService.completeBookingByBarber(
+                    UUID.fromString(barberId),
+                    UUID.fromString(bookingId)
+            );
+            return ResponseEntity.ok(booking);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/barber/{bookingId}/cancel")
+    public ResponseEntity<?> cancelBookingByBarber(
+            @RequestHeader("X-User-Id") String barberId,
+            @PathVariable String bookingId) {
+        try {
+            BookingDTO booking = bookingService.cancelBookingByBarber(
+                    UUID.fromString(barberId),
+                    UUID.fromString(bookingId)
+            );
+            return ResponseEntity.ok(booking);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
     
     // Admin endpoints
     @GetMapping("/admin/all")

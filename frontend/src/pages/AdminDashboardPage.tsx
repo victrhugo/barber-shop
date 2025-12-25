@@ -1,19 +1,139 @@
-import { useQuery } from '@tanstack/react-query'
-import { Calendar, Clock, Users, Scissors, TrendingUp, DollarSign, Filter, Search, CheckCircle, XCircle, BarChart3 } from 'lucide-react'
-import { bookingService } from '../services/bookingService'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Calendar, Clock, Users, Scissors, TrendingUp, DollarSign, Search, CheckCircle, XCircle, BarChart3, Plus, Edit, Trash2 } from 'lucide-react'
+import { bookingService, UpdateBarberData } from '../services/bookingService'
+import { authService } from '../services/authService'
 import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useState } from 'react'
+import toast from 'react-hot-toast'
 
 export default function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
   const [dateFilter, setDateFilter] = useState<string>('ALL')
   const [searchTerm, setSearchTerm] = useState('')
+  const [showBarberForm, setShowBarberForm] = useState(false)
+  const [editingBarber, setEditingBarber] = useState<any>(null)
+  const [barberFormData, setBarberFormData] = useState({
+    email: '',
+    password: '',
+    fullName: '',
+    phone: '',
+    bio: '',
+    specialties: '',
+  })
+  const queryClient = useQueryClient()
 
   const { data: bookings, isLoading } = useQuery({
     queryKey: ['admin-all-bookings'],
     queryFn: bookingService.getAllBookings,
   })
+
+  const { data: barbers } = useQuery({
+    queryKey: ['barbers'],
+    queryFn: bookingService.getBarbers,
+  })
+
+  const createBarberMutation = useMutation({
+    mutationFn: authService.createBarber,
+    onSuccess: () => {
+      toast.success('Barbeiro cadastrado com sucesso!')
+      setShowBarberForm(false)
+      setBarberFormData({
+        email: '',
+        password: '',
+        fullName: '',
+        phone: '',
+        bio: '',
+        specialties: '',
+      })
+      queryClient.invalidateQueries({ queryKey: ['barbers'] })
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.message ||
+                          error.message || 
+                          'Erro ao cadastrar barbeiro'
+      toast.error(errorMessage)
+    },
+  })
+
+  const updateBarberMutation = useMutation({
+    mutationFn: ({ barberId, data }: { barberId: string; data: UpdateBarberData }) => 
+      bookingService.updateBarber(barberId, data),
+    onSuccess: () => {
+      toast.success('Barbeiro atualizado com sucesso!')
+      setEditingBarber(null)
+      queryClient.invalidateQueries({ queryKey: ['barbers'] })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Erro ao atualizar barbeiro')
+    },
+  })
+
+  const deleteBarberMutation = useMutation({
+    mutationFn: bookingService.deleteBarber,
+    onSuccess: () => {
+      toast.success('Barbeiro desativado com sucesso!')
+      queryClient.invalidateQueries({ queryKey: ['barbers'] })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Erro ao desativar barbeiro')
+    },
+  })
+
+  const handleCreateBarber = (e: React.FormEvent) => {
+    e.preventDefault()
+    const specialties = barberFormData.specialties
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+    
+    createBarberMutation.mutate({
+      email: barberFormData.email,
+      password: barberFormData.password,
+      fullName: barberFormData.fullName,
+      phone: barberFormData.phone || undefined,
+      bio: barberFormData.bio || undefined,
+      specialties: specialties.length > 0 ? specialties : undefined,
+    })
+  }
+
+  const handleEditBarber = (barber: any) => {
+    setEditingBarber(barber)
+    setBarberFormData({
+      email: barber.email || '',
+      password: '',
+      fullName: barber.fullName || '',
+      phone: '',
+      bio: barber.bio || '',
+      specialties: barber.specialties?.join(', ') || '',
+    })
+    setShowBarberForm(true)
+  }
+
+  const handleUpdateBarber = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingBarber) return
+
+    const specialties = barberFormData.specialties
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+
+    updateBarberMutation.mutate({
+      barberId: editingBarber.id,
+      data: {
+        bio: barberFormData.bio || undefined,
+        specialties: specialties.length > 0 ? specialties : undefined,
+      },
+    })
+  }
+
+  const handleDeleteBarber = (barberId: string) => {
+    if (confirm('Tem certeza que deseja desativar este barbeiro?')) {
+      deleteBarberMutation.mutate(barberId)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -122,6 +242,202 @@ export default function AdminDashboardPage() {
             <DollarSign className="w-12 h-12 opacity-20" />
           </div>
         </div>
+      </div>
+
+      {/* Create Barber Section */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">Gerenciar Barbeiros</h2>
+          <button
+            onClick={() => {
+              if (editingBarber) {
+                setEditingBarber(null)
+                setBarberFormData({
+                  email: '',
+                  password: '',
+                  fullName: '',
+                  phone: '',
+                  bio: '',
+                  specialties: '',
+                })
+              }
+              setShowBarberForm(!showBarberForm)
+            }}
+            className="flex items-center space-x-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition"
+          >
+            <Plus className="w-5 h-5" />
+            <span>{showBarberForm ? 'Cancelar' : 'Cadastrar Barbeiro'}</span>
+          </button>
+        </div>
+
+        {showBarberForm && (
+          <form onSubmit={editingBarber ? handleUpdateBarber : handleCreateBarber} className="space-y-4 pt-4 border-t">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nome Completo *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={barberFormData.fullName}
+                  onChange={(e) => setBarberFormData({ ...barberFormData, fullName: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+
+              {!editingBarber && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={barberFormData.email}
+                      onChange={(e) => setBarberFormData({ ...barberFormData, email: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Senha *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={barberFormData.password}
+                      onChange={(e) => setBarberFormData({ ...barberFormData, password: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Telefone
+                </label>
+                <input
+                  type="tel"
+                  value={barberFormData.phone}
+                  onChange={(e) => setBarberFormData({ ...barberFormData, phone: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Especialidades (separadas por vírgula)
+                </label>
+                <input
+                  type="text"
+                  value={barberFormData.specialties}
+                  onChange={(e) => setBarberFormData({ ...barberFormData, specialties: e.target.value })}
+                  placeholder="Ex: Corte masculino, Barba, Sobrancelha"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Biografia
+                </label>
+                <textarea
+                  value={barberFormData.bio}
+                  onChange={(e) => setBarberFormData({ ...barberFormData, bio: e.target.value })}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-4">
+              <button
+                type="button"
+                onClick={() => setShowBarberForm(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={editingBarber ? updateBarberMutation.isPending : createBarberMutation.isPending}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50"
+              >
+                {editingBarber 
+                  ? (updateBarberMutation.isPending ? 'Atualizando...' : 'Atualizar Barbeiro')
+                  : (createBarberMutation.isPending ? 'Cadastrando...' : 'Cadastrar Barbeiro')
+                }
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Barbers List */}
+        {barbers && barbers.length > 0 && (
+          <div className="mt-6 pt-6 border-t">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Barbeiros Cadastrados</h3>
+            <div className="space-y-3">
+              {barbers.map((barber) => (
+                <div
+                  key={barber.id}
+                  className={`p-4 border rounded-lg flex items-center justify-between ${
+                    barber.active ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-300 opacity-60'
+                  }`}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">
+                          {barber.fullName || 'Nome não disponível'}
+                        </h4>
+                        {barber.email && (
+                          <p className="text-sm text-gray-600">{barber.email}</p>
+                        )}
+                        {barber.bio && (
+                          <p className="text-sm text-gray-500 mt-1">{barber.bio}</p>
+                        )}
+                        {barber.specialties && barber.specialties.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {barber.specialties.map((specialty, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-1 bg-primary-100 text-primary-700 text-xs rounded"
+                              >
+                                {specialty}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleEditBarber(barber)}
+                      className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
+                      title="Editar"
+                    >
+                      <Edit className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteBarber(barber.id)}
+                      disabled={deleteBarberMutation.isPending}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                      title="Desativar"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Secondary Stats */}
