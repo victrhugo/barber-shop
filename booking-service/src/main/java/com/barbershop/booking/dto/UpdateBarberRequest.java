@@ -9,3 +9,5 @@ public class UpdateBarberRequest {
     private Boolean active;
 }
 
+
+

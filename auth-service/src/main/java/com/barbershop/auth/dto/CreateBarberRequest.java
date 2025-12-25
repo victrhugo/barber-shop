@@ -26,3 +26,5 @@ public class CreateBarberRequest {
     private String[] specialties;
 }
 
+
+
