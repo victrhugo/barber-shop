@@ -15,3 +15,4 @@ public class BarberCreatedEvent {
     private String[] specialties;
 }
 
+
