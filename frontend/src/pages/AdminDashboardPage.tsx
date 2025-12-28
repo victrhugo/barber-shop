@@ -20,6 +20,7 @@ export default function AdminDashboardPage() {
     phone: '',
     bio: '',
     specialties: '',
+    role: 'BARBER', // Default to BARBER, can be changed to ADMIN by admin
   })
   const queryClient = useQueryClient()
 
@@ -71,6 +72,7 @@ export default function AdminDashboardPage() {
         phone: '',
         bio: '',
         specialties: '',
+        role: 'BARBER',
       })
       // Wait a bit for the booking-service to process the barber creation
       await new Promise(resolve => setTimeout(resolve, 1500))
@@ -139,6 +141,7 @@ export default function AdminDashboardPage() {
       phone: barberFormData.phone || undefined,
       bio: barberFormData.bio || undefined,
       specialties: specialties.length > 0 ? specialties : undefined,
+      role: barberFormData.role, // Include role (BARBER or ADMIN)
     })
   }
 
@@ -151,6 +154,7 @@ export default function AdminDashboardPage() {
       phone: '',
       bio: barber.bio || '',
       specialties: barber.specialties?.join(', ') || '',
+      role: 'BARBER', // Role cannot be changed when editing
     })
     setShowBarberForm(true)
   }
@@ -315,6 +319,7 @@ export default function AdminDashboardPage() {
                     phone: '',
                     bio: '',
                     specialties: '',
+                    role: 'BARBER',
                   })
                 }
                 setShowBarberForm(!showBarberForm)
@@ -410,6 +415,27 @@ export default function AdminDashboardPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               </div>
+
+              {!editingBarber && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tipo de Usuário *
+                  </label>
+                  <select
+                    value={barberFormData.role}
+                    onChange={(e) => setBarberFormData({ ...barberFormData, role: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+                  >
+                    <option value="BARBER">Barbeiro (acesso ao painel de barbeiro)</option>
+                    <option value="ADMIN">Administrador (acesso ao painel de admin e barbeiro)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {barberFormData.role === 'ADMIN' 
+                      ? 'Administradores têm acesso completo ao sistema (painel admin e barbeiro)'
+                      : 'Barbeiros têm acesso apenas ao painel de barbeiro'}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end space-x-4">

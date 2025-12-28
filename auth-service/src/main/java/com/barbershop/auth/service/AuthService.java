@@ -144,19 +144,56 @@ public class AuthService {
     }
 
     @Transactional
-    public User createBarber(CreateBarberRequest request) {
+    public User createBarber(CreateBarberRequest request, String creatorRole) {
+        log.info("=== createBarber called ===");
+        log.info("Request email: {}", request.getEmail());
+        log.info("Request role: {}", request.getRole());
+        log.info("Creator role: {}", creatorRole);
+        
         // Check if user already exists
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email já cadastrado");
         }
 
-        // Create user with BARBER role
+        // Determine role: if creator is ADMIN and request specifies ADMIN role, allow it
+        // Otherwise, default to BARBER
+        User.Role userRole = User.Role.BARBER;
+        if (request.getRole() != null && !request.getRole().trim().isEmpty()) {
+            log.info("Processing role request: {}", request.getRole());
+            try {
+                User.Role requestedRole = User.Role.valueOf(request.getRole().toUpperCase());
+                log.info("Parsed requested role: {}", requestedRole);
+                log.info("Creator role check: requestedRole={}, creatorRole={}, match={}", 
+                    requestedRole, creatorRole, "ADMIN".equals(creatorRole));
+                
+                // Only allow ADMIN role if creator is ADMIN (shop owner can create other admins)
+                if (requestedRole == User.Role.ADMIN && "ADMIN".equals(creatorRole)) {
+                    userRole = User.Role.ADMIN;
+                    log.info("✅ Creating user with ADMIN role (shop owner): email={}", request.getEmail());
+                } else if (requestedRole == User.Role.BARBER) {
+                    userRole = User.Role.BARBER;
+                    log.info("Creating user with BARBER role: email={}", request.getEmail());
+                } else {
+                    log.warn("⚠️ Invalid role requested: {}. Creator role: {}. Defaulting to BARBER", 
+                        request.getRole(), creatorRole);
+                }
+            } catch (IllegalArgumentException e) {
+                log.warn("⚠️ Invalid role value: {}. Defaulting to BARBER. Error: {}", 
+                    request.getRole(), e.getMessage());
+            }
+        } else {
+            log.info("No role specified in request, defaulting to BARBER");
+        }
+        
+        log.info("Final user role: {}", userRole);
+
+        // Create user with determined role
         User user = User.builder()
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .phone(request.getPhone())
-                .role(User.Role.BARBER)
+                .role(userRole)
                 .emailVerified(true) // Admin creates barbers, so email is automatically verified
                 .build();
 
@@ -164,7 +201,8 @@ public class AuthService {
         // Force flush to ensure user is persisted in database
         userRepository.flush();
         
-        log.info("User created and flushed: userId={}, email={}", user.getId(), user.getEmail());
+        log.info("✅ User created and flushed: userId={}, email={}, role={}", 
+            user.getId(), user.getEmail(), user.getRole());
         
         // Publish event to create barber entry in booking-service AFTER transaction commits
         eventPublisher.publishEvent(new com.barbershop.auth.event.BarberCreatedEvent(

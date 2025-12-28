@@ -24,6 +24,9 @@ public class CreateBarberRequest {
     private String bio;
     
     private String[] specialties;
+    
+    // Optional: allows admin to create barbers with ADMIN role (shop owner)
+    private String role; // "BARBER" or "ADMIN"
 }
 
 

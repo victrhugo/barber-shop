@@ -6,6 +6,7 @@ import com.barbershop.auth.dto.RegisterRequest;
 import com.barbershop.auth.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +16,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Slf4j
 public class AuthController {
 
     private final AuthService authService;
@@ -65,9 +67,20 @@ public class AuthController {
     }
 
     @PostMapping("/admin/barbers")
-    public ResponseEntity<?> createBarber(@Valid @RequestBody com.barbershop.auth.dto.CreateBarberRequest request) {
+    public ResponseEntity<?> createBarber(
+            @RequestHeader(value = "X-User-Role", required = false, defaultValue = "USER") String creatorRole,
+            @Valid @RequestBody com.barbershop.auth.dto.CreateBarberRequest request) {
         try {
-            com.barbershop.auth.entity.User barber = authService.createBarber(request);
+            log.info("=== createBarber endpoint called ===");
+            log.info("Creator role from header: {}", creatorRole);
+            log.info("Request role: {}", request.getRole());
+            log.info("Request email: {}", request.getEmail());
+            
+            com.barbershop.auth.entity.User barber = authService.createBarber(request, creatorRole);
+            
+            log.info("✅ Barber created successfully: id={}, email={}, role={}", 
+                barber.getId(), barber.getEmail(), barber.getRole());
+            
             return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "id", barber.getId().toString(),
                 "email", barber.getEmail(),
@@ -76,6 +89,7 @@ public class AuthController {
                 "message", "Barbeiro criado com sucesso"
             ));
         } catch (RuntimeException e) {
+            log.error("❌ Error creating barber: {}", e.getMessage());
             return ResponseEntity.badRequest()
                     .body(Map.of("error", e.getMessage()));
         }

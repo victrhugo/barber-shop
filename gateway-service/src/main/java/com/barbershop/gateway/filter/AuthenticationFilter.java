@@ -45,6 +45,9 @@ public class AuthenticationFilter implements GatewayFilter {
             String userId = jwtUtil.extractUserId(token);
             String email = jwtUtil.extractEmail(token);
             String role = jwtUtil.extractRole(token);
+            
+            // Log for debugging
+            System.out.println("🔐 Gateway - Extracted role from token: " + role + " for path: " + request.getPath());
 
             // Add user info to request headers for downstream services
             ServerHttpRequest modifiedRequest = request.mutate()

@@ -47,6 +47,7 @@ export const authService = {
     phone?: string
     bio?: string
     specialties?: string[]
+    role?: string // Optional: "BARBER" or "ADMIN"
   }): Promise<any> => {
     const response = await api.post('/auth/admin/barbers', data)
     return response.data

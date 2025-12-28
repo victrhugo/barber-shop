@@ -14,6 +14,9 @@ export default function LoginPage() {
   const loginMutation = useMutation({
     mutationFn: authService.login,
     onSuccess: (data) => {
+      console.log('🔐 Login response:', data)
+      console.log('🔐 User role:', data.role)
+      
       setAuth(data.token, {
         userId: data.userId,
         email: data.email,
@@ -21,14 +24,23 @@ export default function LoginPage() {
         role: data.role,
         emailVerified: data.emailVerified,
       })
+      
+      // Verify role was saved
+      const { user } = useAuthStore.getState()
+      console.log('🔐 User saved in store:', user)
+      console.log('🔐 User role in store:', user?.role)
+      
       toast.success('Login realizado com sucesso!')
       
       // Redirect based on role
       if (data.role === 'ADMIN') {
+        console.log('🔐 Redirecting to admin dashboard')
         navigate('/admin/dashboard')
       } else if (data.role === 'BARBER') {
+        console.log('🔐 Redirecting to barber dashboard')
         navigate('/barber/dashboard')
       } else {
+        console.log('🔐 Redirecting to user dashboard')
         navigate('/dashboard')
       }
     },

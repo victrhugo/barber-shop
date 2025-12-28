@@ -1,3 +1,4 @@
+import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Scissors, User, LogOut, Calendar } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
@@ -5,6 +6,15 @@ import { useAuthStore } from '../store/authStore'
 export default function Header() {
   const navigate = useNavigate()
   const { isAuthenticated, user, logout } = useAuthStore()
+
+  // Debug: Log user role
+  React.useEffect(() => {
+    if (isAuthenticated() && user) {
+      console.log('📋 Header - User:', user)
+      console.log('📋 Header - User role:', user.role)
+      console.log('📋 Header - Is ADMIN?', user.role === 'ADMIN')
+    }
+  }, [user, isAuthenticated])
 
   const handleLogout = () => {
     logout()
@@ -23,17 +33,22 @@ export default function Header() {
 
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-6">
-            <Link to="/services" className="text-gray-700 hover:text-primary-600 transition">
-              Serviços
-            </Link>
+            {/* Only show Services link for non-authenticated users or regular users */}
+            {(!isAuthenticated() || user?.role === 'USER') && (
+              <Link to="/services" className="text-gray-700 hover:text-primary-600 transition">
+                Serviços
+              </Link>
+            )}
             {isAuthenticated() && (
               <>
+                {/* Show Admin link for users with ADMIN role */}
                 {user?.role === 'ADMIN' && (
                   <Link to="/admin/dashboard" className="text-gray-700 hover:text-primary-600 transition">
                     Admin
                   </Link>
                 )}
-                {user?.role === 'BARBER' && (
+                {/* Show Barber link for BARBER role OR ADMIN role (shop owners can access both) */}
+                {(user?.role === 'BARBER' || user?.role === 'ADMIN') && (
                   <Link to="/barber/dashboard" className="text-gray-700 hover:text-primary-600 transition">
                     Painel Barbeiro
                   </Link>
@@ -56,13 +71,16 @@ export default function Header() {
           <div className="flex items-center space-x-4">
             {isAuthenticated() ? (
               <>
-                <Link 
-                  to="/bookings/new" 
-                  className="btn btn-primary flex items-center space-x-2"
-                >
-                  <Calendar className="w-4 h-4" />
-                  <span>Agendar</span>
-                </Link>
+                {/* Only show "Agendar" button for regular users, not for barbers/admins */}
+                {user?.role === 'USER' && (
+                  <Link 
+                    to="/bookings/new" 
+                    className="btn btn-primary flex items-center space-x-2"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>Agendar</span>
+                  </Link>
+                )}
                 
                 <div className="relative group">
                   <button className="flex items-center space-x-2 text-gray-700 hover:text-primary-600">
