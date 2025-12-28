@@ -23,6 +23,9 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     @Query("SELECT b FROM Booking b WHERE b.barberId = :barberId AND b.bookingDate = :date AND b.bookingTime = :time AND b.status != 'CANCELLED'")
     List<Booking> findConflictingBookingsForBarber(UUID barberId, LocalDate date, LocalTime time);
     
+    @Query("SELECT b FROM Booking b WHERE b.userId = :userId AND b.bookingDate = :date AND b.bookingTime = :time AND b.status != 'CANCELLED'")
+    List<Booking> findConflictingBookingsForClient(UUID userId, LocalDate date, LocalTime time);
+    
     @Query("SELECT b FROM Booking b WHERE b.userId = :userId AND b.status IN ('PENDING', 'CONFIRMED') ORDER BY b.bookingDate, b.bookingTime")
     List<Booking> findUpcomingBookingsByUser(UUID userId);
     

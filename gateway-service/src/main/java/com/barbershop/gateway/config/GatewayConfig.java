@@ -70,6 +70,22 @@ public class GatewayConfig {
                         .filters(f -> f.filter(authenticationFilter))
                         .uri(bookingServiceUrl))
                 
+                // Barber Service Routes (public - GET /api/barbers for listing)
+                // IMPORTANT: This must come BEFORE /api/barbers/** route
+                .route("barbers-public-get", r -> r
+                        .path("/api/barbers")
+                        .and()
+                        .method("GET")
+                        .uri(bookingServiceUrl))
+                
+                // Barber Service Routes (protected - all other operations)
+                // This catches POST, PUT, DELETE, and /api/barbers/admin/** routes
+                // Note: /api/barbers (exact match) is handled above, this only catches /api/barbers/**
+                .route("barber-service", r -> r
+                        .path("/api/barbers/**")
+                        .filters(f -> f.filter(authenticationFilter))
+                        .uri(bookingServiceUrl))
+                
                 .build();
     }
 

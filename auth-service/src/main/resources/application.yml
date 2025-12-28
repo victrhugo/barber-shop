@@ -111,7 +111,7 @@ jwt:
 
 booking:
   service:
-    url: ${BOOKING_SERVICE_URL:http://gateway-service:8080}
+    url: ${BOOKING_SERVICE_URL:http://booking-service:8083}
 
 # Actuator (docker profile) - disable mail health check
 management:

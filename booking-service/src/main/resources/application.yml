@@ -49,10 +49,10 @@ spring:
 server:
   port: 8083
 
-# User Service URL (via gateway)
+# User Service URL (direct to user-service, not via gateway)
 user:
   service:
-    url: ${USER_SERVICE_URL:http://localhost:8080}
+    url: ${USER_SERVICE_URL:http://localhost:8082}
 
 # Actuator
 management:
@@ -104,6 +104,6 @@ spring:
 
 user:
   service:
-    url: ${USER_SERVICE_URL:http://gateway-service:8080}
+    url: ${USER_SERVICE_URL:http://user-service:8082}
 
 

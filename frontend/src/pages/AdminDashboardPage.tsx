@@ -4,7 +4,7 @@ import { bookingService, UpdateBarberData } from '../services/bookingService'
 import { authService } from '../services/authService'
 import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 
 export default function AdminDashboardPage() {
@@ -28,14 +28,40 @@ export default function AdminDashboardPage() {
     queryFn: bookingService.getAllBookings,
   })
 
-  const { data: barbers } = useQuery({
-    queryKey: ['barbers'],
-    queryFn: bookingService.getBarbers,
+  // Debug: Log bookings to verify clientName is present
+  useEffect(() => {
+    if (bookings && bookings.length > 0) {
+      console.log('📋 Bookings received:', bookings)
+      bookings.forEach((booking, index) => {
+        console.log(`📋 Booking ${index}:`, {
+          id: booking.id,
+          userId: booking.userId,
+          clientName: booking.clientName,
+          clientNameType: typeof booking.clientName,
+          clientNameLength: booking.clientName?.length,
+          hasClientName: !!booking.clientName,
+          clientNameTrimmed: booking.clientName?.trim()
+        })
+      })
+    }
+  }, [bookings])
+
+  const { data: barbers, isLoading: isLoadingBarbers, error: barbersError } = useQuery({
+    queryKey: ['barbers-admin'],
+    queryFn: bookingService.getAllBarbersForAdmin,
+    retry: 2,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   })
+
+  // Debug: log barbers data
+  useEffect(() => {
+    console.log('Barbeiros no AdminDashboard:', barbers, 'Loading:', isLoadingBarbers, 'Error:', barbersError)
+  }, [barbers, isLoadingBarbers, barbersError])
 
   const createBarberMutation = useMutation({
     mutationFn: authService.createBarber,
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Barbeiro cadastrado com sucesso!')
       setShowBarberForm(false)
       setBarberFormData({
@@ -46,7 +72,15 @@ export default function AdminDashboardPage() {
         bio: '',
         specialties: '',
       })
+      // Wait a bit for the booking-service to process the barber creation
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      // Invalidate both queries to refresh lists
+      queryClient.invalidateQueries({ queryKey: ['barbers-admin'] })
       queryClient.invalidateQueries({ queryKey: ['barbers'] })
+      // Force refetch with retry
+      await queryClient.refetchQueries({ queryKey: ['barbers-admin'] })
+      await queryClient.refetchQueries({ queryKey: ['barbers'] })
+      console.log('Barbeiros atualizados após criação')
     },
     onError: (error: any) => {
       const errorMessage = error.response?.data?.error || 
@@ -54,6 +88,7 @@ export default function AdminDashboardPage() {
                           error.message || 
                           'Erro ao cadastrar barbeiro'
       toast.error(errorMessage)
+      console.error('Erro ao cadastrar barbeiro:', error)
     },
   })
 
@@ -63,7 +98,12 @@ export default function AdminDashboardPage() {
     onSuccess: () => {
       toast.success('Barbeiro atualizado com sucesso!')
       setEditingBarber(null)
+      setShowBarberForm(false)
+      // Invalidate both queries to refresh lists
+      queryClient.invalidateQueries({ queryKey: ['barbers-admin'] })
       queryClient.invalidateQueries({ queryKey: ['barbers'] })
+      // Force refetch
+      queryClient.refetchQueries({ queryKey: ['barbers-admin'] })
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Erro ao atualizar barbeiro')
@@ -74,7 +114,11 @@ export default function AdminDashboardPage() {
     mutationFn: bookingService.deleteBarber,
     onSuccess: () => {
       toast.success('Barbeiro desativado com sucesso!')
+      // Invalidate both queries to refresh lists
+      queryClient.invalidateQueries({ queryKey: ['barbers-admin'] })
       queryClient.invalidateQueries({ queryKey: ['barbers'] })
+      // Force refetch
+      queryClient.refetchQueries({ queryKey: ['barbers-admin'] })
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Erro ao desativar barbeiro')
@@ -130,7 +174,7 @@ export default function AdminDashboardPage() {
   }
 
   const handleDeleteBarber = (barberId: string) => {
-    if (confirm('Tem certeza que deseja desativar este barbeiro?')) {
+    if (window.confirm('Tem certeza que deseja desativar este barbeiro? Ele não aparecerá mais na lista de barbeiros disponíveis.')) {
       deleteBarberMutation.mutate(barberId)
     }
   }
@@ -248,26 +292,39 @@ export default function AdminDashboardPage() {
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold text-gray-900">Gerenciar Barbeiros</h2>
-          <button
-            onClick={() => {
-              if (editingBarber) {
-                setEditingBarber(null)
-                setBarberFormData({
-                  email: '',
-                  password: '',
-                  fullName: '',
-                  phone: '',
-                  bio: '',
-                  specialties: '',
-                })
-              }
-              setShowBarberForm(!showBarberForm)
-            }}
-            className="flex items-center space-x-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition"
-          >
-            <Plus className="w-5 h-5" />
-            <span>{showBarberForm ? 'Cancelar' : 'Cadastrar Barbeiro'}</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                queryClient.refetchQueries({ queryKey: ['barbers-admin'] })
+                queryClient.refetchQueries({ queryKey: ['barbers'] })
+                toast.success('Lista atualizada!')
+              }}
+              className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition"
+              title="Atualizar lista"
+            >
+              <span>🔄</span>
+            </button>
+            <button
+              onClick={() => {
+                if (editingBarber) {
+                  setEditingBarber(null)
+                  setBarberFormData({
+                    email: '',
+                    password: '',
+                    fullName: '',
+                    phone: '',
+                    bio: '',
+                    specialties: '',
+                  })
+                }
+                setShowBarberForm(!showBarberForm)
+              }}
+              className="flex items-center space-x-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition"
+            >
+              <Plus className="w-5 h-5" />
+              <span>{showBarberForm ? 'Cancelar' : 'Cadastrar Barbeiro'}</span>
+            </button>
+          </div>
         </div>
 
         {showBarberForm && (
@@ -378,23 +435,39 @@ export default function AdminDashboardPage() {
         )}
 
         {/* Barbers List */}
-        {barbers && barbers.length > 0 && (
-          <div className="mt-6 pt-6 border-t">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Barbeiros Cadastrados</h3>
+        <div className="mt-6 pt-6 border-t">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Barbeiros Cadastrados {barbers ? `(${barbers.length})` : ''}
+          </h3>
+          {isLoadingBarbers ? (
+            <div className="text-center py-8 text-gray-500">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
+              <p>Carregando barbeiros...</p>
+            </div>
+          ) : barbersError ? (
+            <div className="text-center py-8 text-red-500">
+              <p>Erro ao carregar barbeiros. Tente recarregar a página.</p>
+            </div>
+          ) : barbers && barbers.length > 0 ? (
             <div className="space-y-3">
               {barbers.map((barber) => (
                 <div
                   key={barber.id}
-                  className={`p-4 border rounded-lg flex items-center justify-between ${
-                    barber.active ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-300 opacity-60'
+                  className={`p-4 border rounded-lg flex items-center justify-between transition ${
+                    barber.active ? 'bg-white border-gray-200 hover:shadow-md' : 'bg-gray-50 border-gray-300 opacity-60'
                   }`}
                 >
                   <div className="flex-1">
                     <div className="flex items-center space-x-3">
                       <div>
-                        <h4 className="font-semibold text-gray-900">
-                          {barber.fullName || 'Nome não disponível'}
-                        </h4>
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-semibold text-gray-900">
+                            {barber.fullName || 'Nome não disponível'}
+                          </h4>
+                          {!barber.active && (
+                            <span className="px-2 py-1 bg-gray-200 text-gray-600 text-xs rounded">Inativo</span>
+                          )}
+                        </div>
                         {barber.email && (
                           <p className="text-sm text-gray-600">{barber.email}</p>
                         )}
@@ -420,7 +493,7 @@ export default function AdminDashboardPage() {
                     <button
                       onClick={() => handleEditBarber(barber)}
                       className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
-                      title="Editar"
+                      title="Editar Barbeiro"
                     >
                       <Edit className="w-5 h-5" />
                     </button>
@@ -428,7 +501,7 @@ export default function AdminDashboardPage() {
                       onClick={() => handleDeleteBarber(barber.id)}
                       disabled={deleteBarberMutation.isPending}
                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
-                      title="Desativar"
+                      title={barber.active ? "Desativar Barbeiro" : "Barbeiro já está inativo"}
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>
@@ -436,8 +509,13 @@ export default function AdminDashboardPage() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <p className="text-lg font-medium mb-2">Nenhum barbeiro cadastrado ainda.</p>
+              <p className="text-sm">Clique em "Cadastrar Barbeiro" para adicionar um novo barbeiro.</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Secondary Stats */}
@@ -560,15 +638,37 @@ export default function AdminDashboardPage() {
                           <span className="font-medium">{booking.barber.fullName}</span>
                         </div>
                       ) : booking.barberName ? (
-                        <span className="font-medium">{booking.barberName}</span>
+                        <div className="flex items-center">
+                          <Users className="w-4 h-4 mr-2 text-gray-400" />
+                          <span className="font-medium">{booking.barberName}</span>
+                        </div>
                       ) : (
                         <span className="text-gray-400 italic">Não atribuído</span>
                       )}
                     </td>
                     <td className="p-4">
-                      <span className="text-sm text-gray-600">
-                        {booking.userId.substring(0, 8)}...
-                      </span>
+                      {(() => {
+                        const clientName = booking.clientName;
+                        const hasValidName = clientName && typeof clientName === 'string' && clientName.trim() !== '';
+                        
+                        if (hasValidName) {
+                          return (
+                            <div className="flex items-center">
+                              <Users className="w-4 h-4 mr-2 text-gray-400" />
+                              <span className="font-medium text-gray-900">{clientName.trim()}</span>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="flex items-center">
+                              <Users className="w-4 h-4 mr-2 text-gray-400" />
+                              <span className="text-sm text-gray-500 italic">
+                                {booking.userId ? booking.userId.substring(0, 8) + '...' : 'N/A'}
+                              </span>
+                            </div>
+                          );
+                        }
+                      })()}
                     </td>
                     <td className="p-4">
                       <div className="flex items-center text-gray-700">

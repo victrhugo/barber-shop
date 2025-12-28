@@ -13,7 +13,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
@@ -29,6 +32,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
     private final RestTemplate restTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${booking.service.url:http://localhost:8083}")
     private String bookingServiceUrl;
@@ -157,26 +161,116 @@ public class AuthService {
                 .build();
 
         user = userRepository.save(user);
-
-        // Create barber entry in booking-service
-        try {
-            CreateBarberInBookingServiceRequest barberRequest = new CreateBarberInBookingServiceRequest();
-            barberRequest.setUserId(user.getId());
-            barberRequest.setBio(request.getBio());
-            barberRequest.setSpecialties(request.getSpecialties());
-            
-            String url = bookingServiceUrl + "/api/barbers";
-            restTemplate.postForEntity(url, barberRequest, Object.class);
-            log.info("Barber entry created in booking-service for user: {}", user.getId());
-        } catch (Exception e) {
-            log.error("Failed to create barber entry in booking-service for user: {}", user.getId(), e);
-            // Don't fail user creation, but log the error
-        }
-
+        // Force flush to ensure user is persisted in database
+        userRepository.flush();
+        
+        log.info("User created and flushed: userId={}, email={}", user.getId(), user.getEmail());
+        
+        // Publish event to create barber entry in booking-service AFTER transaction commits
+        eventPublisher.publishEvent(new com.barbershop.auth.event.BarberCreatedEvent(
+            user.getId(), 
+            request.getBio(), 
+            request.getSpecialties()
+        ));
+        
         // Send welcome email
         emailService.sendWelcomeEmail(user.getEmail(), user.getFullName());
 
         return user;
+    }
+    
+    // Event listener to create barber entry in booking-service AFTER transaction commits
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleBarberCreatedEvent(com.barbershop.auth.event.BarberCreatedEvent event) {
+        log.info("BarberCreatedEvent received after transaction commit: userId={}, bio={}, specialties={}", 
+            event.getUserId(), event.getBio(), event.getSpecialties());
+        
+        // Small delay to ensure database replication/visibility
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Thread interrupted during delay", e);
+        }
+        
+        // Create barber entry in booking-service with retry
+        CreateBarberInBookingServiceRequest barberRequest = new CreateBarberInBookingServiceRequest();
+        barberRequest.setUserId(event.getUserId());
+        barberRequest.setBio(event.getBio());
+        barberRequest.setSpecialties(event.getSpecialties());
+        
+        String url = bookingServiceUrl + "/api/barbers";
+        log.info("Creating barber entry in booking-service: url={}, userId={}, bio={}, specialties={}", 
+            url, event.getUserId(), event.getBio(), event.getSpecialties());
+        
+        int maxRetries = 3;
+        int retryDelayMs = 1000; // 1 second
+        Exception lastException = null;
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                org.springframework.http.ResponseEntity<?> response = restTemplate.postForEntity(url, barberRequest, Object.class);
+                log.info("✅ Barber entry created in booking-service for user: {}, response status: {}, attempt: {}", 
+                    event.getUserId(), response.getStatusCode(), attempt);
+                return; // Success, exit method
+            } catch (org.springframework.web.client.HttpClientErrorException e) {
+                lastException = e;
+                log.warn("HTTP error creating barber entry in booking-service for user: {}. Status: {}, Response: {}, attempt: {}/{}", 
+                    event.getUserId(), e.getStatusCode(), e.getResponseBodyAsString(), attempt, maxRetries);
+                
+                // If it's a 4xx error (client error), retry anyway (might be foreign key constraint)
+                if (attempt < maxRetries) {
+                    try {
+                        Thread.sleep(retryDelayMs * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.error("Interrupted while waiting to retry barber creation", ie);
+                        return;
+                    }
+                } else {
+                    log.error("Failed to create barber entry in booking-service after {} attempts: userId={}, error={}", 
+                        maxRetries, event.getUserId(), e.getResponseBodyAsString());
+                    // Don't throw exception - this is async, we don't want to break the transaction
+                    return;
+                }
+            } catch (org.springframework.web.client.ResourceAccessException e) {
+                lastException = e;
+                log.warn("Connection error creating barber entry in booking-service for user: {}. Error: {}, attempt: {}/{}", 
+                    event.getUserId(), e.getMessage(), attempt, maxRetries);
+                
+                if (attempt < maxRetries) {
+                    try {
+                        Thread.sleep(retryDelayMs * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.error("Interrupted while waiting to retry barber creation", ie);
+                        return;
+                    }
+                } else {
+                    log.error("Failed to connect to booking-service after {} attempts: userId={}", 
+                        maxRetries, event.getUserId());
+                    return;
+                }
+            } catch (Exception e) {
+                lastException = e;
+                log.error("Unexpected error creating barber entry in booking-service for user: {}. URL: {}. Error: {}, attempt: {}/{}", 
+                    event.getUserId(), url, e.getMessage(), attempt, maxRetries);
+                
+                if (attempt < maxRetries) {
+                    try {
+                        Thread.sleep(retryDelayMs * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.error("Interrupted while waiting to retry barber creation", ie);
+                        return;
+                    }
+                } else {
+                    log.error("Failed to create barber entry in booking-service after {} attempts: userId={}", 
+                        maxRetries, event.getUserId());
+                    return;
+                }
+            }
+        }
     }
 }
 

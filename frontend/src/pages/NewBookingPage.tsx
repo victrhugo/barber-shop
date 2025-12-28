@@ -18,9 +18,11 @@ export default function NewBookingPage() {
     queryFn: bookingService.getServices,
   })
 
-  const { data: barbers } = useQuery({
+  const { data: barbers, isLoading: isLoadingBarbers, error: barbersError } = useQuery({
     queryKey: ['barbers'],
     queryFn: bookingService.getBarbers,
+    retry: 2,
+    refetchOnWindowFocus: true,
   })
 
   const { register, handleSubmit, formState: { errors }, watch } = useForm<CreateBookingData>({
@@ -140,22 +142,39 @@ export default function NewBookingPage() {
             {/* Barber Selection */}
             <div>
               <label className="block text-sm font-medium mb-2">
-                Barbeiro (Opcional)
+                Escolher Barbeiro
               </label>
-              <select
-                className="input"
-                {...register('barberId')}
-              >
-                <option value="">Atribuir automaticamente</option>
-                {barbers?.map((barber) => (
-                  <option key={barber.id} value={barber.id}>
-                    {barber.fullName}
-                  </option>
-                ))}
-              </select>
-              <p className="text-sm text-gray-500 mt-1">
-                Se não selecionar, um barbeiro disponível será atribuído automaticamente
-              </p>
+              {isLoadingBarbers ? (
+                <div className="input text-gray-500">Carregando barbeiros...</div>
+              ) : barbersError ? (
+                <div className="input text-red-500 border-red-300">
+                  Erro ao carregar barbeiros. Você ainda pode agendar e o sistema atribuirá automaticamente.
+                </div>
+              ) : (
+                <>
+                  <select
+                    className="input"
+                    {...register('barberId')}
+                  >
+                    <option value="">🔄 Atribuir automaticamente</option>
+                    {barbers && barbers.length > 0 ? (
+                      barbers.map((barber) => (
+                        <option key={barber.id} value={barber.id}>
+                          ✂️ {barber.fullName || `Barbeiro ${barber.id.substring(0, 8)}`}
+                          {barber.specialties && barber.specialties.length > 0 && ` - ${barber.specialties.join(', ')}`}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="">Nenhum barbeiro disponível</option>
+                    )}
+                  </select>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {barbers && barbers.length > 0 
+                      ? "Escolha um barbeiro específico ou deixe em 'Atribuir automaticamente' para o sistema escolher um barbeiro disponível."
+                      : "Nenhum barbeiro cadastrado. O sistema tentará atribuir automaticamente quando houver barbeiros disponíveis."}
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Notes */}

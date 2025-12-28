@@ -29,6 +29,7 @@ export interface UpdateBarberData {
 export interface Booking {
   id: string
   userId: string
+  clientName?: string
   barberId?: string
   barberName?: string
   barber?: Barber
@@ -92,8 +93,25 @@ export const bookingService = {
 
   // Barbers
   getBarbers: async (): Promise<Barber[]> => {
-    const response = await api.get('/barbers')
-    return response.data
+    try {
+      const response = await api.get('/barbers')
+      console.log('Barbeiros retornados (getBarbers):', response.data)
+      return response.data || []
+    } catch (error: any) {
+      console.error('Erro ao buscar barbeiros:', error)
+      throw error
+    }
+  },
+
+  getAllBarbersForAdmin: async (): Promise<Barber[]> => {
+    try {
+      const response = await api.get('/barbers/admin/all')
+      console.log('Barbeiros retornados (getAllBarbersForAdmin):', response.data)
+      return response.data || []
+    } catch (error: any) {
+      console.error('Erro ao buscar barbeiros (admin):', error)
+      throw error
+    }
   },
 
   updateBarber: async (barberId: string, data: { bio?: string; specialties?: string[]; active?: boolean }): Promise<Barber> => {

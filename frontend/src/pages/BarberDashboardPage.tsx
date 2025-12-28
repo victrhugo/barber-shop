@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Calendar, Clock, User, Scissors, CheckCircle, TrendingUp, Award } from 'lucide-react'
 import { bookingService } from '../services/bookingService'
-import { format, parseISO, isToday, isTomorrow } from 'date-fns'
+import { format, parseISO, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
@@ -204,145 +204,155 @@ export default function BarberDashboardPage() {
         </div>
       </div>
 
-      {/* Bookings List */}
-      <div>
+      {/* Bookings Table */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Agendamentos</h2>
+          <span className="text-sm text-gray-600">
+            {filteredBookings.length} {filteredBookings.length === 1 ? 'agendamento' : 'agendamentos'}
+          </span>
+        </div>
+
         {filteredBookings.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredBookings.map((booking) => {
-              const bookingDate = parseISO(booking.bookingDate)
-              const isTodayBooking = isToday(bookingDate)
-              const isTomorrowBooking = isTomorrow(bookingDate)
-
-              return (
-                <div
-                  key={booking.id}
-                  className={`card transition-all hover:shadow-xl ${
-                    isTodayBooking ? 'border-2 border-primary-500 bg-primary-50' : ''
-                  }`}
-                >
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="font-bold text-lg text-gray-900 mb-1">
-                        {booking.service.name}
-                      </h3>
-                      <p className="text-sm text-gray-600">{booking.service.description}</p>
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      booking.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
-                      booking.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                      booking.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
-                      {booking.status === 'CONFIRMED' ? 'Confirmado' :
-                       booking.status === 'PENDING' ? 'Pendente' :
-                       booking.status === 'CANCELLED' ? 'Cancelado' :
-                       'Concluído'}
-                    </span>
-                  </div>
-
-                  {/* Date & Time */}
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center text-gray-700">
-                      <Calendar className={`w-4 h-4 mr-2 ${isTodayBooking ? 'text-primary-600' : 'text-gray-400'}`} />
-                      <span className={`font-medium ${isTodayBooking ? 'text-primary-600' : ''}`}>
-                        {isTodayBooking ? 'Hoje' :
-                         isTomorrowBooking ? 'Amanhã' :
-                         format(bookingDate, "dd 'de' MMMM", { locale: ptBR })}
-                      </span>
-                    </div>
-                    <div className="flex items-center text-gray-700">
-                      <Clock className="w-4 h-4 mr-2 text-gray-400" />
-                      <span className="font-semibold">{booking.bookingTime}</span>
-                    </div>
-                    <div className="flex items-center text-gray-700">
-                      <User className="w-4 h-4 mr-2 text-gray-400" />
-                      <span className="text-sm">Cliente: {booking.userId.substring(0, 8)}...</span>
-                    </div>
-                  </div>
-
-                  {/* Service Details */}
-                  <div className="border-t border-gray-200 pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Duração</p>
-                        <p className="font-medium">{booking.service.durationMinutes} min</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500 mb-1">Valor</p>
-                        <p className="text-lg font-bold text-primary-600">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2 border-gray-200 bg-gray-50">
+                  <th className="text-left p-4 font-semibold text-gray-700">ID</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Serviço</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Cliente</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Data</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Horário</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Valor</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Status</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredBookings.map((booking) => {
+                  const bookingDate = parseISO(booking.bookingDate)
+                  const isTodayBooking = isToday(bookingDate)
+                  
+                  return (
+                    <tr key={booking.id} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                      <td className="p-4">
+                        <span className="text-xs font-mono text-gray-500">
+                          {booking.id.substring(0, 8)}...
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div>
+                          <div className="font-semibold text-gray-900">{booking.service.name}</div>
+                          <div className="text-sm text-gray-500">{booking.service.description}</div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        {booking.clientName ? (
+                          <div className="flex items-center">
+                            <User className="w-4 h-4 mr-2 text-gray-400" />
+                            <span className="font-medium text-gray-900">{booking.clientName}</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <User className="w-4 h-4 mr-2 text-gray-400" />
+                            <span className="text-sm text-gray-500 italic">
+                              Cliente {booking.userId.substring(0, 8)}...
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center text-gray-700">
+                          <Calendar className={`w-4 h-4 mr-2 ${isTodayBooking ? 'text-primary-600' : 'text-gray-400'}`} />
+                          <span className={isTodayBooking ? 'font-semibold text-primary-600' : ''}>
+                            {isTodayBooking ? 'Hoje' :
+                             format(bookingDate, "dd/MM/yyyy", { locale: ptBR })}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center text-gray-700">
+                          <Clock className="w-4 h-4 mr-2 text-gray-400" />
+                          {booking.bookingTime}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <span className="font-semibold text-green-600">
                           R$ {booking.service.price.toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  {booking.notes && (
-                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                      <p className="text-xs font-semibold text-gray-600 mb-1">Observações:</p>
-                      <p className="text-sm text-gray-700">{booking.notes}</p>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-                    {booking.status === 'PENDING' && (
-                      <button
-                        onClick={() => confirmMutation.mutate(booking.id)}
-                        disabled={confirmMutation.isPending}
-                        className="w-full btn btn-primary text-sm py-2"
-                      >
-                        {confirmMutation.isPending ? 'Confirmando...' : 'Confirmar Agendamento'}
-                      </button>
-                    )}
-                    
-                    {booking.status === 'CONFIRMED' && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => completeMutation.mutate(booking.id)}
-                          disabled={completeMutation.isPending}
-                          className="flex-1 btn bg-green-600 hover:bg-green-700 text-white text-sm py-2"
-                        >
-                          {completeMutation.isPending ? 'Salvando...' : 'Marcar como Concluído'}
-                        </button>
-                        <button
-                          onClick={() => cancelMutation.mutate(booking.id)}
-                          disabled={cancelMutation.isPending}
-                          className="flex-1 btn bg-red-600 hover:bg-red-700 text-white text-sm py-2"
-                        >
-                          {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar'}
-                        </button>
-                      </div>
-                    )}
-                    
-                    {booking.status === 'PENDING' && (
-                      <button
-                        onClick={() => {
-                          if (window.confirm('Tem certeza que deseja cancelar este agendamento?')) {
-                            cancelMutation.mutate(booking.id)
-                          }
-                        }}
-                        disabled={cancelMutation.isPending}
-                        className="w-full btn bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm py-2"
-                      >
-                        {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar Agendamento'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                          booking.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
+                          booking.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                          booking.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {booking.status === 'CONFIRMED' ? 'Confirmado' :
+                           booking.status === 'PENDING' ? 'Pendente' :
+                           booking.status === 'CANCELLED' ? 'Cancelado' :
+                           'Concluído'}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex gap-2">
+                          {booking.status === 'PENDING' && (
+                            <button
+                              onClick={() => confirmMutation.mutate(booking.id)}
+                              disabled={confirmMutation.isPending}
+                              className="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 transition disabled:opacity-50"
+                            >
+                              {confirmMutation.isPending ? 'Confirmando...' : 'Confirmar'}
+                            </button>
+                          )}
+                          {booking.status === 'CONFIRMED' && (
+                            <>
+                              <button
+                                onClick={() => completeMutation.mutate(booking.id)}
+                                disabled={completeMutation.isPending}
+                                className="px-3 py-1 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition disabled:opacity-50"
+                              >
+                                {completeMutation.isPending ? 'Salvando...' : 'Concluir'}
+                              </button>
+                              <button
+                                onClick={() => cancelMutation.mutate(booking.id)}
+                                disabled={cancelMutation.isPending}
+                                className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+                              >
+                                {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar'}
+                              </button>
+                            </>
+                          )}
+                          {booking.status === 'PENDING' && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Tem certeza que deseja cancelar este agendamento?')) {
+                                  cancelMutation.mutate(booking.id)
+                                }
+                              }}
+                              disabled={cancelMutation.isPending}
+                              className="px-3 py-1 bg-gray-200 text-gray-800 text-xs rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
+                            >
+                              {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         ) : (
-          <div className="card text-center py-12">
+          <div className="text-center py-12">
             <Scissors className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600 text-lg mb-2">
+            <p className="text-gray-600 text-lg">
               {viewMode === 'today' && 'Nenhum agendamento para hoje'}
               {viewMode === 'upcoming' && 'Nenhum agendamento próximo'}
               {viewMode === 'all' && 'Nenhum agendamento encontrado'}
             </p>
-            <p className="text-gray-400 text-sm">Sua agenda está livre!</p>
+            <p className="text-gray-400 text-sm mt-2">Sua agenda está livre!</p>
           </div>
         )}
       </div>

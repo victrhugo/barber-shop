@@ -16,6 +16,7 @@ import java.time.LocalTime;
 public class BookingDTO {
     private String id;
     private String userId;
+    private String clientName;
     private String barberId;
     private String barberName;
     private ServiceDTO service;

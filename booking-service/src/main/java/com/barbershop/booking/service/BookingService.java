@@ -11,7 +11,9 @@ import com.barbershop.booking.repository.BookingRepository;
 import com.barbershop.booking.repository.ServiceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -29,6 +31,15 @@ public class BookingService {
     private final ServiceRepository serviceRepository;
     private final BarberRepository barberRepository;
     private final EmailService emailService;
+    private final RestTemplate restTemplate;
+    
+    @Value("${user.service.url}")
+    private String userServiceUrl;
+    
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        log.info("🔧 BookingService initialized with userServiceUrl: {}", userServiceUrl);
+    }
 
     // Service Management
     public List<ServiceDTO> getAllServices() {
@@ -46,30 +57,56 @@ public class BookingService {
     // Booking Management
     @Transactional
     public BookingDTO createBooking(UUID userId, CreateBookingRequest request) {
+        log.info("Creating booking for userId={}, serviceId={}, date={}, time={}", 
+            userId, request.getServiceId(), request.getBookingDate(), request.getBookingTime());
+        
         // Validate service exists
         Service service = serviceRepository.findById(UUID.fromString(request.getServiceId()))
-                .orElseThrow(() -> new RuntimeException("Serviço não encontrado"));
+                .orElseThrow(() -> {
+                    log.error("Service not found: {}", request.getServiceId());
+                    return new RuntimeException("Serviço não encontrado");
+                });
 
         // Check if booking date is not in the past
         if (request.getBookingDate().isBefore(LocalDate.now())) {
+            log.warn("Attempt to book in the past: date={}", request.getBookingDate());
             throw new RuntimeException("Não é possível agendar em datas passadas");
+        }
+
+        // Check if client already has a booking at this time
+        List<Booking> clientConflicts = bookingRepository.findConflictingBookingsForClient(
+                userId,
+                request.getBookingDate(),
+                request.getBookingTime()
+        );
+        
+        if (!clientConflicts.isEmpty()) {
+            log.warn("Client already has a booking at date={}, time={}", 
+                request.getBookingDate(), request.getBookingTime());
+            throw new RuntimeException("Você já possui um agendamento neste horário. Por favor, escolha outro horário.");
         }
 
         UUID barberUserId = null;
         
         // If barber preference is specified, check availability
         if (request.getBarberId() != null && !request.getBarberId().isEmpty()) {
+            log.debug("Barber preference specified: barberId={}", request.getBarberId());
             // barberId from request is the ID from barbers table, need to convert to user_id
             UUID barberTableId = UUID.fromString(request.getBarberId());
             Barber barber = barberRepository.findById(barberTableId)
-                    .orElseThrow(() -> new RuntimeException("Barbeiro não encontrado"));
+                    .orElseThrow(() -> {
+                        log.error("Barber not found: barberTableId={}", barberTableId);
+                        return new RuntimeException("Barbeiro não encontrado");
+                    });
             
             if (!barber.getActive()) {
-                throw new RuntimeException("Barbeiro não está disponível");
+                log.warn("Attempt to book with inactive barber: barberTableId={}", barberTableId);
+                throw new RuntimeException("Este barbeiro não está disponível no momento");
             }
             
             // Use the user_id (not the barber table id) for bookings
             barberUserId = barber.getUserId();
+            log.debug("Barber userId resolved: {}", barberUserId);
             
             // Check if barber is available at this time
             List<Booking> barberConflicts = bookingRepository.findConflictingBookingsForBarber(
@@ -79,15 +116,25 @@ public class BookingService {
             );
             
             if (!barberConflicts.isEmpty()) {
-                throw new RuntimeException("Barbeiro não está disponível neste horário");
+                log.warn("Barber not available: barberUserId={}, date={}, time={}, conflicts={}", 
+                    barberUserId, request.getBookingDate(), request.getBookingTime(), barberConflicts.size());
+                throw new RuntimeException("Este barbeiro não está disponível neste horário. Por favor, escolha outro horário ou outro barbeiro.");
             }
+            
+            log.info("Barber {} is available for booking", barberUserId);
         } else {
             // Auto-assign barber: find available barber
+            log.debug("Auto-assigning barber for date={}, time={}", 
+                request.getBookingDate(), request.getBookingTime());
             barberUserId = findAvailableBarber(request.getBookingDate(), request.getBookingTime());
             
             if (barberUserId == null) {
-                throw new RuntimeException("Nenhum barbeiro disponível neste horário");
+                log.warn("No available barbers found for date={}, time={}", 
+                    request.getBookingDate(), request.getBookingTime());
+                throw new RuntimeException("Nenhum barbeiro disponível neste horário. Por favor, escolha outro horário.");
             }
+            
+            log.info("Auto-assigned barber: {}", barberUserId);
         }
 
         // Create booking
@@ -102,6 +149,8 @@ public class BookingService {
                 .build();
 
         booking = bookingRepository.save(booking);
+        log.info("Booking created successfully: bookingId={}, userId={}, barberUserId={}, date={}, time={}", 
+            booking.getId(), userId, barberUserId, request.getBookingDate(), request.getBookingTime());
         
         // Send booking confirmation email
         try {
@@ -113,9 +162,10 @@ public class BookingService {
                 bookingDateFormatted,
                 bookingTimeFormatted
             );
+            log.debug("Booking confirmation email sent to userId={}", userId);
         } catch (Exception e) {
             // Log error but don't fail the booking creation
-            log.error("Failed to send booking confirmation email", e);
+            log.error("Failed to send booking confirmation email for userId={}", userId, e);
         }
         
         return mapBookingToDTO(booking);
@@ -123,8 +173,16 @@ public class BookingService {
     
     private UUID findAvailableBarber(LocalDate date, java.time.LocalTime time) {
         List<Barber> activeBarbers = barberRepository.findByActiveTrue();
+        log.info("Finding available barber for date={}, time={}. Active barbers count: {}", 
+            date, time, activeBarbers.size());
+        
+        if (activeBarbers.isEmpty()) {
+            log.warn("No active barbers found in the system");
+            return null;
+        }
         
         for (Barber barber : activeBarbers) {
+            log.debug("Checking barber userId={} for availability", barber.getUserId());
             // Use user_id (not barber table id) for booking conflicts
             List<Booking> conflicts = bookingRepository.findConflictingBookingsForBarber(
                     barber.getUserId(),
@@ -132,12 +190,16 @@ public class BookingService {
                     time
             );
             
+            log.debug("Barber userId={} has {} conflicts", barber.getUserId(), conflicts.size());
+            
             if (conflicts.isEmpty()) {
+                log.info("Found available barber: userId={}", barber.getUserId());
                 // Return user_id for the booking
                 return barber.getUserId();
             }
         }
         
+        log.warn("No available barbers found for date={}, time={}", date, time);
         return null;
     }
 
@@ -157,8 +219,10 @@ public class BookingService {
     
     // Barber methods
     public List<BookingDTO> getBarberBookings(UUID barberId) {
-        return bookingRepository.findByBarberIdOrderByBookingDateDescBookingTimeDesc(barberId)
-                .stream()
+        log.info("Getting bookings for barber with userId: {}", barberId);
+        List<Booking> bookings = bookingRepository.findByBarberIdOrderByBookingDateDescBookingTimeDesc(barberId);
+        log.info("Found {} bookings for barber {}", bookings.size(), barberId);
+        return bookings.stream()
                 .map(this::mapBookingToDTO)
                 .collect(Collectors.toList());
     }
@@ -331,19 +395,45 @@ public class BookingService {
     }
 
     private BookingDTO mapBookingToDTO(Booking booking) {
+        // Get barber name
         String barberName = null;
         if (booking.getBarberId() != null) {
-            Optional<Barber> barber = barberRepository.findByUserId(booking.getBarberId());
-            if (barber.isPresent()) {
-                // barber.getBarberId() is the user_id, which is what we store in bookings.barber_id
-                // For now we'll use a placeholder, but ideally we'd fetch from user-service
-                barberName = "Barbeiro " + booking.getBarberId().toString().substring(0, 8);
+            try {
+                UserInfo barberInfo = getUserInfo(booking.getBarberId());
+                if (barberInfo != null && barberInfo.getFullName() != null && !barberInfo.getFullName().isEmpty()) {
+                    barberName = barberInfo.getFullName();
+                } else {
+                    log.warn("Barber name not found for barberId: {}", booking.getBarberId());
+                    // Try to get from barber repository as fallback
+                    Optional<Barber> barber = barberRepository.findByUserId(booking.getBarberId());
+                    if (barber.isPresent()) {
+                        barberName = "Barbeiro " + booking.getBarberId().toString().substring(0, 8);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error getting barber name for barberId: {}", booking.getBarberId(), e);
             }
+        }
+        
+        // Get client name
+        String clientName = null;
+        try {
+            log.info("Getting client name for booking userId: {}", booking.getUserId());
+            UserInfo clientInfo = getUserInfo(booking.getUserId());
+            if (clientInfo != null && clientInfo.getFullName() != null && !clientInfo.getFullName().isEmpty()) {
+                clientName = clientInfo.getFullName();
+                log.info("✅ Client name set to: {} for userId: {}", clientName, booking.getUserId());
+            } else {
+                log.warn("⚠️ Client name not found for userId: {}. clientInfo={}", booking.getUserId(), clientInfo);
+            }
+        } catch (Exception e) {
+            log.error("❌ Error getting client name for userId: {}", booking.getUserId(), e);
         }
         
         return BookingDTO.builder()
                 .id(booking.getId().toString())
                 .userId(booking.getUserId().toString())
+                .clientName(clientName)
                 .barberId(booking.getBarberId() != null ? booking.getBarberId().toString() : null)
                 .barberName(barberName)
                 .service(mapServiceToDTO(booking.getService()))
@@ -353,6 +443,35 @@ public class BookingService {
                 .notes(booking.getNotes())
                 .createdAt(booking.getCreatedAt())
                 .build();
+    }
+    
+    private UserInfo getUserInfo(UUID userId) {
+        try {
+            String url = userServiceUrl + "/api/users/" + userId;
+            log.info("Fetching user info from: {} for userId: {}", url, userId);
+            UserInfo userInfo = restTemplate.getForObject(url, UserInfo.class);
+            if (userInfo != null) {
+                log.info("✅ Fetched user info for userId {}: fullName={}, email={}", userId, userInfo.getFullName(), userInfo.getEmail());
+            } else {
+                log.warn("⚠️ UserInfo is null for userId: {}", userId);
+            }
+            return userInfo;
+        } catch (Exception e) {
+            log.error("❌ Error fetching user info for userId: {} from URL: {}. Error: {}", userId, userServiceUrl + "/api/users/" + userId, e.getMessage(), e);
+            return null;
+        }
+    }
+    
+    @lombok.Data
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    private static class UserInfo {
+        private String id;
+        private String email;
+        private String fullName;
+        private String phone;
+        private String role;
+        private Boolean emailVerified;
     }
 }
 

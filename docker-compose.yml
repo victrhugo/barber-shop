@@ -84,6 +84,7 @@ services:
       - MAIL_PORT=${MAIL_PORT:-587}
       - MAIL_USERNAME=${MAIL_USERNAME:-}
       - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - BOOKING_SERVICE_URL=http://booking-service:8083
     depends_on:
       postgres:
         condition: service_healthy
@@ -146,7 +147,7 @@ services:
       - MAIL_PORT=${MAIL_PORT:-587}
       - MAIL_USERNAME=${MAIL_USERNAME:-}
       - MAIL_PASSWORD=${MAIL_PASSWORD:-}
-      - USER_SERVICE_URL=http://gateway-service:8080
+      - USER_SERVICE_URL=http://user-service:8082
     depends_on:
       postgres:
         condition: service_healthy
