@@ -1,45 +1,58 @@
-# Script de Diagnóstico - BarberShop System
+# Script de Diagnostico - BarberShop System
 # Execute este script no notebook para identificar problemas
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  DIAGNÓSTICO BARBERSHOP SYSTEM" -ForegroundColor Cyan
+Write-Host "  DIAGNOSTICO BARBERSHOP SYSTEM" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # 1. Verificar Docker
 Write-Host "[1/8] Verificando Docker..." -ForegroundColor Yellow
-try {
-    $dockerVersion = docker --version
-    Write-Host "✓ Docker instalado: $dockerVersion" -ForegroundColor Green
-} catch {
-    Write-Host "✗ Docker NÃO está instalado!" -ForegroundColor Red
+$dockerCheck = Get-Command docker -ErrorAction SilentlyContinue
+if ($dockerCheck) {
+    $dockerVersion = docker --version 2>&1
+    if ($?) {
+        Write-Host "[OK] Docker instalado: $dockerVersion" -ForegroundColor Green
+    } else {
+        Write-Host "[ERRO] Docker NAO esta funcionando corretamente!" -ForegroundColor Red
+        Write-Host "  Instale Docker Desktop: https://www.docker.com/products/docker-desktop" -ForegroundColor Yellow
+        exit 1
+    }
+} else {
+    Write-Host "[ERRO] Docker NAO esta instalado!" -ForegroundColor Red
     Write-Host "  Instale Docker Desktop: https://www.docker.com/products/docker-desktop" -ForegroundColor Yellow
     exit 1
 }
 
 # 2. Verificar Docker Compose
 Write-Host "[2/8] Verificando Docker Compose..." -ForegroundColor Yellow
-try {
-    $composeVersion = docker-compose --version
-    Write-Host "✓ Docker Compose instalado: $composeVersion" -ForegroundColor Green
-} catch {
-    Write-Host "✗ Docker Compose NÃO está instalado!" -ForegroundColor Red
+$composeCheck = Get-Command docker-compose -ErrorAction SilentlyContinue
+if ($composeCheck) {
+    $composeVersion = docker-compose --version 2>&1
+    if ($?) {
+        Write-Host "[OK] Docker Compose instalado: $composeVersion" -ForegroundColor Green
+    } else {
+        Write-Host "[ERRO] Docker Compose NAO esta funcionando corretamente!" -ForegroundColor Red
+        exit 1
+    }
+} else {
+    Write-Host "[ERRO] Docker Compose NAO esta instalado!" -ForegroundColor Red
     exit 1
 }
 
-# 3. Verificar se Docker está rodando
-Write-Host "[3/8] Verificando se Docker está rodando..." -ForegroundColor Yellow
-try {
-    docker ps | Out-Null
-    Write-Host "✓ Docker está rodando" -ForegroundColor Green
-} catch {
-    Write-Host "✗ Docker NÃO está rodando!" -ForegroundColor Red
+# 3. Verificar se Docker esta rodando
+Write-Host "[3/8] Verificando se Docker esta rodando..." -ForegroundColor Yellow
+docker ps 2>&1 | Out-Null
+if ($?) {
+    Write-Host "[OK] Docker esta rodando" -ForegroundColor Green
+} else {
+    Write-Host "[ERRO] Docker NAO esta rodando!" -ForegroundColor Red
     Write-Host "  Inicie o Docker Desktop" -ForegroundColor Yellow
     exit 1
 }
 
 # 4. Verificar portas em uso
-Write-Host "[4/8] Verificando portas necessárias..." -ForegroundColor Yellow
+Write-Host "[4/8] Verificando portas necessarias..." -ForegroundColor Yellow
 $ports = @(3000, 8080, 8081, 8082, 8083, 5432, 6379)
 $portsInUse = @()
 
@@ -48,21 +61,21 @@ foreach ($port in $ports) {
     if ($connection) {
         $process = Get-Process -Id $connection.OwningProcess -ErrorAction SilentlyContinue
         $portsInUse += "$port (PID: $($connection.OwningProcess), Processo: $($process.ProcessName))"
-        Write-Host "⚠ Porta $port está em uso: $($process.ProcessName)" -ForegroundColor Yellow
+        Write-Host "[AVISO] Porta $port esta em uso: $($process.ProcessName)" -ForegroundColor Yellow
     } else {
-        Write-Host "✓ Porta $port está livre" -ForegroundColor Green
+        Write-Host "[OK] Porta $port esta livre" -ForegroundColor Green
     }
 }
 
 if ($portsInUse.Count -gt 0) {
     Write-Host ""
-    Write-Host "⚠ ATENÇÃO: As seguintes portas estão em uso:" -ForegroundColor Yellow
+    Write-Host "[ATENCAO] As seguintes portas estao em uso:" -ForegroundColor Yellow
     foreach ($portInfo in $portsInUse) {
         Write-Host "  - $portInfo" -ForegroundColor Yellow
     }
     Write-Host ""
-    Write-Host "Soluções:" -ForegroundColor Cyan
-    Write-Host "  1. Pare os processos que estão usando essas portas" -ForegroundColor White
+    Write-Host "Solucoes:" -ForegroundColor Cyan
+    Write-Host "  1. Pare os processos que estao usando essas portas" -ForegroundColor White
     Write-Host "  2. Ou altere as portas no docker-compose.yml" -ForegroundColor White
 }
 
@@ -73,34 +86,34 @@ $availableRAM = [math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysic
 $cpuCores = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
 
 Write-Host "  RAM Total: ${totalRAM} GB" -ForegroundColor White
-Write-Host "  RAM Disponível: ${availableRAM} GB" -ForegroundColor White
+Write-Host "  RAM Disponivel: ${availableRAM} GB" -ForegroundColor White
 Write-Host "  CPU Cores: $cpuCores" -ForegroundColor White
 
 if ($totalRAM -lt 4) {
-    Write-Host "⚠ ATENÇÃO: RAM total menor que 4GB (recomendado)" -ForegroundColor Yellow
+    Write-Host "[AVISO] RAM total menor que 4GB (recomendado)" -ForegroundColor Yellow
 }
 if ($availableRAM -lt 2) {
-    Write-Host "⚠ ATENÇÃO: RAM disponível menor que 2GB" -ForegroundColor Yellow
+    Write-Host "[AVISO] RAM disponivel menor que 2GB" -ForegroundColor Yellow
     Write-Host "  Feche outros programas antes de iniciar o sistema" -ForegroundColor Yellow
 }
 
-# 6. Verificar se containers já existem
+# 6. Verificar se containers ja existem
 Write-Host "[6/8] Verificando containers existentes..." -ForegroundColor Yellow
-$existingContainers = docker ps -a --filter "name=barbershop" --format "{{.Names}}"
-if ($existingContainers) {
-    Write-Host "⚠ Containers existentes encontrados:" -ForegroundColor Yellow
+$existingContainers = docker ps -a --filter "name=barbershop" --format "{{.Names}}" 2>&1
+if ($existingContainers -and $existingContainers -notmatch "error") {
+    Write-Host "[AVISO] Containers existentes encontrados:" -ForegroundColor Yellow
     foreach ($container in $existingContainers) {
         Write-Host "  - $container" -ForegroundColor White
     }
     Write-Host ""
     Write-Host "Para limpar containers antigos, execute:" -ForegroundColor Cyan
     Write-Host "  docker-compose down" -ForegroundColor White
-    Write-Host "  docker-compose down -v  # Remove volumes também" -ForegroundColor White
+    Write-Host "  docker-compose down -v  # Remove volumes tambem" -ForegroundColor White
 } else {
-    Write-Host "✓ Nenhum container antigo encontrado" -ForegroundColor Green
+    Write-Host "[OK] Nenhum container antigo encontrado" -ForegroundColor Green
 }
 
-# 7. Verificar arquivos necessários
+# 7. Verificar arquivos necessarios
 Write-Host "[7/8] Verificando arquivos do projeto..." -ForegroundColor Yellow
 $requiredFiles = @(
     "docker-compose.yml",
@@ -115,65 +128,64 @@ $requiredFiles = @(
 $missingFiles = @()
 foreach ($file in $requiredFiles) {
     if (Test-Path $file) {
-        Write-Host "✓ $file" -ForegroundColor Green
+        Write-Host "[OK] $file" -ForegroundColor Green
     } else {
-        Write-Host "✗ $file NÃO encontrado!" -ForegroundColor Red
+        Write-Host "[ERRO] $file NAO encontrado!" -ForegroundColor Red
         $missingFiles += $file
     }
 }
 
 if ($missingFiles.Count -gt 0) {
     Write-Host ""
-    Write-Host "✗ Arquivos faltando! Certifique-se de que está no diretório correto do projeto." -ForegroundColor Red
+    Write-Host "[ERRO] Arquivos faltando! Certifique-se de que esta no diretorio correto do projeto." -ForegroundColor Red
 }
 
-# 8. Verificar variáveis de ambiente
-Write-Host "[8/8] Verificando variáveis de ambiente..." -ForegroundColor Yellow
+# 8. Verificar variaveis de ambiente
+Write-Host "[8/8] Verificando variaveis de ambiente..." -ForegroundColor Yellow
 if (Test-Path ".env") {
-    Write-Host "✓ Arquivo .env encontrado" -ForegroundColor Green
+    Write-Host "[OK] Arquivo .env encontrado" -ForegroundColor Green
 } else {
-    Write-Host "⚠ Arquivo .env não encontrado" -ForegroundColor Yellow
+    Write-Host "[AVISO] Arquivo .env nao encontrado" -ForegroundColor Yellow
     if (Test-Path "env.example") {
         Write-Host "  Copie env.example para .env:" -ForegroundColor Cyan
         Write-Host "    Copy-Item env.example .env" -ForegroundColor White
     }
 }
 
-# Resumo e recomendações
+# Resumo e recomendacoes
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  RESUMO E PRÓXIMOS PASSOS" -ForegroundColor Cyan
+Write-Host "  RESUMO E PROXIMOS PASSOS" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 if ($portsInUse.Count -gt 0) {
-    Write-Host "⚠ PROBLEMA ENCONTRADO: Portas em uso" -ForegroundColor Red
-    Write-Host "  Solução: Pare os processos ou altere as portas" -ForegroundColor Yellow
+    Write-Host "[PROBLEMA] Portas em uso" -ForegroundColor Red
+    Write-Host "  Solucao: Pare os processos ou altere as portas" -ForegroundColor Yellow
     Write-Host ""
 }
 
 if ($missingFiles.Count -gt 0) {
-    Write-Host "⚠ PROBLEMA ENCONTRADO: Arquivos faltando" -ForegroundColor Red
-    Write-Host "  Solução: Certifique-se de estar no diretório correto" -ForegroundColor Yellow
+    Write-Host "[PROBLEMA] Arquivos faltando" -ForegroundColor Red
+    Write-Host "  Solucao: Certifique-se de estar no diretorio correto" -ForegroundColor Yellow
     Write-Host ""
 }
 
 Write-Host "Para iniciar o sistema, execute:" -ForegroundColor Cyan
-Write-Host "  1. docker-compose down -v  # Limpar tudo (se necessário)" -ForegroundColor White
+Write-Host "  1. docker-compose down -v  # Limpar tudo (se necessario)" -ForegroundColor White
 Write-Host "  2. docker-compose build    # Construir imagens" -ForegroundColor White
-Write-Host "  3. docker-compose up -d    # Iniciar serviços" -ForegroundColor White
+Write-Host "  3. docker-compose up -d    # Iniciar servicos" -ForegroundColor White
 Write-Host "  4. docker-compose logs -f  # Ver logs" -ForegroundColor White
 Write-Host ""
 
-Write-Host "Para verificar status dos serviços:" -ForegroundColor Cyan
+Write-Host "Para verificar status dos servicos:" -ForegroundColor Cyan
 Write-Host "  docker-compose ps" -ForegroundColor White
 Write-Host ""
 
-Write-Host "Para ver logs de um serviço específico:" -ForegroundColor Cyan
+Write-Host "Para ver logs de um servico especifico:" -ForegroundColor Cyan
 Write-Host "  docker logs barbershop-auth" -ForegroundColor White
 Write-Host "  docker logs barbershop-gateway" -ForegroundColor White
 Write-Host "  docker logs barbershop-frontend" -ForegroundColor White
 Write-Host ""
 
 Write-Host "========================================" -ForegroundColor Cyan
-
